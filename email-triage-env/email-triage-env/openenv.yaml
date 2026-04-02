@@ -1,0 +1,103 @@
+name: email-triage-env
+version: "1.0.0"
+description: >
+  An OpenEnv-spec reinforcement learning environment simulating real-world email triage.
+  An AI agent must read incoming emails and decide: category (urgent/normal/spam/follow_up),
+  priority (1-5), routing department, whether a reply is needed, and provide a summary.
+  Tasks range from obvious spam filtering (easy) to nuanced business judgment calls (hard).
+
+author: OpenEnv Hackathon Submission
+tags:
+  - openenv
+  - email
+  - triage
+  - nlp
+  - real-world
+  - business
+
+environment:
+  type: text
+  interface: http
+
+action_space:
+  type: structured
+  fields:
+    category:
+      type: string
+      enum: [urgent, normal, spam, follow_up]
+    priority:
+      type: integer
+      min: 1
+      max: 5
+    route_to:
+      type: string
+      enum: [support, sales, billing, technical, hr, ignore]
+    summary:
+      type: string
+    requires_reply:
+      type: boolean
+
+observation_space:
+  type: structured
+  fields:
+    email_id:
+      type: string
+    subject:
+      type: string
+    sender:
+      type: string
+    body:
+      type: string
+    received_at:
+      type: string
+    step_number:
+      type: integer
+    emails_remaining:
+      type: integer
+    cumulative_reward:
+      type: float
+
+tasks:
+  - id: easy
+    name: "Basic Email Sorting"
+    description: "Sort obvious emails: spam vs legitimate, basic routing decisions"
+    difficulty: easy
+    max_steps: 3
+    expected_baseline_score: 0.65
+
+  - id: medium
+    name: "Priority Triage"
+    description: "Handle urgent emails, billing alerts, and technical incidents"
+    difficulty: medium
+    max_steps: 3
+    expected_baseline_score: 0.55
+
+  - id: hard
+    name: "Complex Judgment Calls"
+    description: "Nuanced business emails requiring context-aware decisions"
+    difficulty: hard
+    max_steps: 4
+    expected_baseline_score: 0.40
+
+reward:
+  type: continuous
+  range: [0.0, 1.0]
+  trajectory: true
+
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  health: GET /health
+
+docker:
+  port: 7860
+  build_command: docker build -t email-triage-env .
+  run_command: docker run -p 7860:7860 email-triage-env
+
+baseline:
+  script: inference.py
+  scores:
+    easy: 0.65
+    medium: 0.55
+    hard: 0.40
