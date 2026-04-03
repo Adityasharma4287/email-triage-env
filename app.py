@@ -1,6 +1,6 @@
 """
 Email Triage OpenEnv - FastAPI Server
-Exposes the environment via HTTP API for agent interaction and the React dashboard.
+OpenEnv-spec compliant: /reset /step /state /validate /health
 """
 import os
 import sys
@@ -44,7 +44,6 @@ session_meta: dict[str, dict[str, object]] = {}
 
 
 def utcnow() -> str:
-    """Return current UTC time as ISO string (timezone-aware)."""
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -58,9 +57,9 @@ class ResetRequest(BaseModel):
 
 class StepRequest(BaseModel):
     session_id: str
-    priority: str
-    category: str
-    action: str
+    priority: str = "medium"
+    category: str = "other"
+    action: str = "archive"
     reply_text: Optional[str] = None
     forward_to: Optional[str] = None
     notes: Optional[str] = None
@@ -89,8 +88,14 @@ async def health() -> dict[str, object]:
 
 
 @app.post("/reset")
-async def reset_environment(req: ResetRequest) -> dict[str, object]:
-    """Start a new episode. Returns session_id and first email observation."""
+async def reset_environment(req: Optional[ResetRequest] = None) -> dict[str, object]:
+    """
+    Start a new episode. Body is optional — works with empty POST too.
+    Returns session_id and first email observation.
+    """
+    if req is None:
+        req = ResetRequest()
+
     session_id = str(uuid.uuid4())[:8]
     env = EmailTriageEnv(task_id=req.task_id, num_emails=req.num_emails, seed=req.seed)
     obs = env.reset()
@@ -140,7 +145,6 @@ async def step_environment(req: StepRequest) -> dict[str, object]:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    # Access current observation via public method
     current_obs = env.current_observation()
     action = TriageAction(
         email_id=current_obs.email_id,
@@ -167,7 +171,6 @@ async def step_environment(req: StepRequest) -> dict[str, object]:
 
 @app.get("/state/{session_id}")
 async def get_state(session_id: str) -> dict[str, object]:
-    """Get the full current state of an environment session."""
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
     env = sessions[session_id]
@@ -181,7 +184,6 @@ async def get_state(session_id: str) -> dict[str, object]:
 
 @app.get("/score/{session_id}")
 async def get_score(session_id: str) -> dict[str, object]:
-    """Get the current normalized score for a session."""
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
     env = sessions[session_id]
@@ -196,7 +198,6 @@ async def get_score(session_id: str) -> dict[str, object]:
 
 @app.get("/log/{session_id}")
 async def get_episode_log(session_id: str) -> dict[str, object]:
-    """Get the full decision log for a session."""
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
     env = sessions[session_id]
@@ -205,7 +206,7 @@ async def get_episode_log(session_id: str) -> dict[str, object]:
 
 @app.get("/validate")
 async def validate_environment() -> dict[str, object]:
-    """OpenEnv validation — runs a quick self-test to verify spec compliance."""
+    """OpenEnv validation — runs a quick self-test."""
     errors: list[str] = []
     try:
         env = EmailTriageEnv(task_id="validate", num_emails=3, seed=1)
@@ -233,7 +234,7 @@ async def validate_environment() -> dict[str, object]:
         score = env.get_score()
         assert 0.0 <= score <= 1.0, f"score out of range: {score}"
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         errors.append(str(exc))
 
     checks_passed: list[str] = (
@@ -258,7 +259,6 @@ async def validate_environment() -> dict[str, object]:
 
 @app.get("/tasks")
 async def list_tasks() -> dict[str, object]:
-    """List all available tasks with descriptions and difficulty."""
     return {
         "tasks": [
             {
@@ -289,7 +289,7 @@ async def list_tasks() -> dict[str, object]:
     }
 
 
-# ─── Serve React SPA — must be registered LAST ───────────────────────────────
+# ─── Serve React SPA — must be LAST ──────────────────────────────────────────
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(_static_dir):
     _assets_dir = os.path.join(_static_dir, "assets")
@@ -298,7 +298,7 @@ if os.path.isdir(_static_dir):
 
     @app.get("/app", include_in_schema=False)
     @app.get("/app/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str = "") -> FileResponse:  # noqa: ARG001
+    async def serve_spa(full_path: str = "") -> FileResponse:
         return FileResponse(os.path.join(_static_dir, "index.html"))
 
 
