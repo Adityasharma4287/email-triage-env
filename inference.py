@@ -78,6 +78,7 @@ def triage_email(obs: dict) -> dict:
 
 def run_task(task: dict) -> float:
     print(f"\n{'='*55}")
+    print(f"[START]")
     print(f"  TASK: {task['id']}  ({task['num_emails']} emails)")
     print(f"{'='*55}")
 
@@ -90,7 +91,7 @@ def run_task(task: dict) -> float:
 
     while obs.get("email_id") != "DONE":
         subj = obs.get("subject", "")[:55]
-        print(f"\n  [{steps+1}] {subj}...")
+        print(f"\n[STEP {steps+1}] {subj}...")
 
         try:
             decision = triage_email(obs)
@@ -129,7 +130,8 @@ def run_task(task: dict) -> float:
     score = total_reward / steps if steps > 0 else 0.0
     # Normalize from [-1,1] to [0,1]
     normalized = max(0.0, min(1.0, (score + 1.0) / 2.0))
-    print(f"\n  ✓ Done — {steps} emails | raw_score={score:.4f} | normalized={normalized:.4f}")
+    print(f"\n[END]")
+    print(f"  ✓ Done — {steps} emails | raw_score={score:.4f} | normalized={normalized:.4f}")
     return normalized
 
 
