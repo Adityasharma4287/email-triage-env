@@ -1,4 +1,12 @@
 """
+def normalize_score(score: float) -> float:
+    if score <= 0:
+        return 0.01
+    elif score >= 1:
+        return 0.99
+    return score
+    return normalize_score(score)
+Task Graders for Email Triage Environment
 Task Graders for Email Triage Environment
 Each grader scores agent performance on 0.0 - 1.0 scale.
 """
