@@ -239,3 +239,7 @@ if __name__ == "__main__":
     print("Running all graders with dummy agent...")
     results = run_all_graders(dummy_agent)
     print(json.dumps(results["summary"], indent=2))
+# FORCE SAFE RETURN
+def safe_return(score):
+    return max(0.01, min(0.99, score))
+    return safe_return(...)
