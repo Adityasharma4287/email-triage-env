@@ -1,11 +1,4 @@
 """
-def normalize_score(score: float) -> float:
-    if score <= 0:
-        return 0.01
-    elif score >= 1:
-        return 0.99
-    return score
-    return normalize_score(score)
 Task Graders for Email Triage Environment
 Each grader scores agent performance on 0.0 - 1.0 scale.
 """
@@ -14,6 +7,17 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from env.email_triage_env import EmailTriageEnv, TriageAction, Priority, Category
+
+
+# ─── Score Normalization (strictly between 0 and 1, exclusive) ────────────────
+
+def normalize_score(score: float) -> float:
+    """Clamp score to strictly (0, 1) — 0.0 and 1.0 are not allowed."""
+    if score <= 0:
+        return 0.001
+    elif score >= 1:
+        return 0.999
+    return round(score, 4)
 
 
 # ─── Base Grader ──────────────────────────────────────────────────────────────
@@ -54,11 +58,12 @@ class BaseGrader:
             except Exception as e:
                 results.append({"reward": -0.5, "info": {"error": str(e)}})
 
-        score = env.get_score()
+        raw_score = env.get_score()
+        score = normalize_score(raw_score)  # ← FIX: ensure strictly (0, 1)
         episode_log = env.get_episode_log()
 
         return {
-            "score": round(score, 4),
+            "score": score,
             "task_id": self.task_id,
             "difficulty": self.difficulty,
             "description": self.description,
@@ -152,13 +157,11 @@ class AmbiguousEmailGrader(BaseGrader):
 
     def _evaluate_criteria(self, log: list[dict], score: float) -> dict:
         hard_emails = [e for e in log]
-        # Check for dangerous mistakes (urgent archived/deleted)
         dangerous_mistakes = sum(
             1 for e in hard_emails
             if e["ground_truth"]["priority"] == "urgent"
             and e["agent_action"]["action"] in ("archive", "delete")
         )
-        # Check escalation rate on hard cases
         escalations = sum(1 for e in hard_emails if e["agent_action"]["action"] == "escalate")
         gt_escalations = sum(1 for e in hard_emails if e["ground_truth"]["action"] == "escalate")
 
@@ -217,7 +220,7 @@ def run_all_graders(agent_fn) -> dict:
 
     scores = [r["score"] for r in results.values()]
     results["summary"] = {
-        "average_score": round(sum(scores) / len(scores), 4),
+        "average_score": normalize_score(sum(scores) / len(scores)),  # ← FIX: normalize summary too
         "all_passed": all(r["passed"] for r in results.values()),
         "scores_by_difficulty": {k: results[k]["score"] for k in ["easy", "medium", "hard"]},
     }
@@ -238,7 +241,3 @@ if __name__ == "__main__":
     print("Running all graders with dummy agent...")
     results = run_all_graders(dummy_agent)
     print(json.dumps(results["summary"], indent=2))
-# FORCE SAFE RETURN
-def safe_return(score):
-    return max(0.01, min(0.99, score))
-    return safe_return(...)
