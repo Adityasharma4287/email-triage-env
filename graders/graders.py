@@ -59,7 +59,7 @@ class BaseGrader:
                 results.append({"reward": -0.5, "info": {"error": str(e)}})
 
         raw_score = env.get_score()
-        score = normalize_score(raw_score)  # ← FIX: ensure strictly (0, 1)
+        score = normalize_score(raw_score)  # ← ensure strictly (0, 1)
         episode_log = env.get_episode_log()
 
         return {
@@ -108,8 +108,8 @@ class SpamDetectionGrader(BaseGrader):
                     urgent_correct += 1
 
         return {
-            "spam_detection_rate": round(spam_correct / spam_total, 3) if spam_total else 1.0,
-            "urgent_detection_rate": round(urgent_correct / urgent_total, 3) if urgent_total else 1.0,
+            "spam_detection_rate": normalize_score(round(spam_correct / spam_total, 3) if spam_total else 1.0),
+            "urgent_detection_rate": normalize_score(round(urgent_correct / urgent_total, 3) if urgent_total else 1.0),
             "overall_score": score,
             "passed": score >= self.passing_threshold,
         }
@@ -137,9 +137,9 @@ class FullTriageGrader(BaseGrader):
         )
         n = len(log) or 1
         return {
-            "priority_accuracy": round(priority_hits / n, 3),
-            "category_accuracy": round(category_hits / n, 3),
-            "action_accuracy": round(action_hits / n, 3),
+            "priority_accuracy": normalize_score(round(priority_hits / n, 3)),
+            "category_accuracy": normalize_score(round(category_hits / n, 3)),
+            "action_accuracy": normalize_score(round(action_hits / n, 3)),
             "overall_score": score,
             "passed": score >= self.passing_threshold,
         }
@@ -168,9 +168,9 @@ class AmbiguousEmailGrader(BaseGrader):
         return {
             "dangerous_mistakes": dangerous_mistakes,
             "no_dangerous_mistakes": dangerous_mistakes == 0,
-            "escalation_precision": round(
+            "escalation_precision": normalize_score(round(
                 escalations / gt_escalations if gt_escalations else 1.0, 3
-            ),
+            )),
             "overall_score": score,
             "passed": score >= self.passing_threshold,
         }
@@ -220,7 +220,7 @@ def run_all_graders(agent_fn) -> dict:
 
     scores = [r["score"] for r in results.values()]
     results["summary"] = {
-        "average_score": normalize_score(sum(scores) / len(scores)),  # ← FIX: normalize summary too
+        "average_score": normalize_score(sum(scores) / len(scores)),  # normalize summary too
         "all_passed": all(r["passed"] for r in results.values()),
         "scores_by_difficulty": {k: results[k]["score"] for k in ["easy", "medium", "hard"]},
     }
