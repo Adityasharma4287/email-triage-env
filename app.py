@@ -89,7 +89,9 @@ async def health() -> dict[str, object]:
 
 
 @app.post("/reset")
-async def reset_environment(req: ResetRequest) -> dict[str, object]:
+async def reset_environment(req: Optional[ResetRequest] = None) -> dict[str, object]:
+    if req is None:
+        req = ResetRequest()
     """Start a new episode. Returns session_id and first email observation."""
     session_id = str(uuid.uuid4())[:8]
     env = EmailTriageEnv(task_id=req.task_id, num_emails=req.num_emails, seed=req.seed)
