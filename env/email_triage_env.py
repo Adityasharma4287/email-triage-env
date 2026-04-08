@@ -189,7 +189,7 @@ class EmailTriageEnv:
         "tags": ["email", "triage", "nlp", "customer-support"],
         "action_space": "TriageAction (Pydantic model)",
         "observation_space": "EmailObservation (Pydantic model)",
-        "reward_range": [-1.0, 1.0],
+        "reward_range": [-0.999, 0.999],
         "max_steps": 50,
     }
 
@@ -204,7 +204,7 @@ class EmailTriageEnv:
         self._processed: list[dict] = []
         self._current_index = 0
         self._step_count = 0
-        self._cumulative_reward = 0.0
+        self._cumulative_reward = 0.0  # internal accumulator, not a score
         self._done = False
         self._episode_log: list[dict] = []
 
@@ -215,7 +215,7 @@ class EmailTriageEnv:
         self._processed = []
         self._current_index = 0
         self._step_count = 0
-        self._cumulative_reward = 0.0
+        self._cumulative_reward = 0.0  # internal accumulator, not a score
         self._done = False
         self._episode_log = []
         return self._make_observation()
@@ -291,7 +291,7 @@ class EmailTriageEnv:
             return 0.001
         max_possible = len(self._processed) * 1.0
         earned = self._cumulative_reward
-        normalized = (earned / max_possible) if max_possible > 0 else 0.0
+        normalized = (earned / max_possible) if max_possible > 0 else -0.999
         raw = (normalized + 1.0) / 2.0
         # Clamp to strictly (0, 1) — 0.0 and 1.0 are not allowed
         if raw <= 0.0:
@@ -381,7 +381,7 @@ class EmailTriageEnv:
         - Action appropriateness (30%)
         """
         gt = email["ground_truth"]
-        reward = 0.0
+        reward = 0.0  # internal accumulator, not a score
         breakdown = {}
 
         # Priority score (40%)
@@ -391,7 +391,7 @@ class EmailTriageEnv:
 
         # Category score (30%)
         category_correct = action.category == gt["category"]
-        category_score = 1.0 if category_correct else -0.5
+        category_score = 0.999 if category_correct else -0.5
         reward += category_score * 0.30
         breakdown["category"] = category_score
 
@@ -402,7 +402,7 @@ class EmailTriageEnv:
 
         # Bonus: reply quality for reply actions
         if action.action == "reply" and action.reply_text:
-            bonus = 0.05 if len(action.reply_text) > 50 else 0.0
+            bonus = 0.05 if len(action.reply_text) > 50 else -0.999
             reward += bonus
             breakdown["reply_quality_bonus"] = bonus
 
@@ -421,17 +421,17 @@ class EmailTriageEnv:
         gt_val = priority_order.get(ground_truth, 2)
         diff = abs(pred_val - gt_val)
         if diff == 0:
-            return 1.0
+            return 0.999
         elif diff == 1:
             return 0.3
         elif diff == 2:
             return -0.2
         else:
-            return -1.0
+            return -0.999
 
     def _score_action(self, predicted: str, ground_truth: str, priority: str) -> float:
         if predicted == ground_truth:
-            return 1.0
+            return 0.999
         # Partial credit for reasonable alternatives
         reasonable_alts = {
             "escalate": ["forward", "reply"],
@@ -445,5 +445,5 @@ class EmailTriageEnv:
             return 0.4
         # Heavy penalty for deleting non-spam urgent/high
         if predicted == "delete" and priority in ("urgent", "high"):
-            return -1.0
+            return -0.999
         return -0.5
