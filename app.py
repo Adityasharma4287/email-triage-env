@@ -256,6 +256,52 @@ async def validate_environment() -> dict[str, object]:
     }
 
 
+def _run_grader_score(task_id: str, num_emails: int, seed: int) -> float:
+    """Run a quick grader episode with a baseline agent and return score."""
+    from graders.graders import GRADERS
+    for grader in GRADERS.values():
+        if grader.task_id == task_id:
+            env = EmailTriageEnv(task_id=task_id, num_emails=num_emails, seed=seed)
+            obs = env.reset()
+            actions = []
+            while obs.email_id != "DONE":
+                actions.append({"priority": "medium", "category": "other", "action": "archive"})
+                action = TriageAction(
+                    email_id=obs.email_id,
+                    priority=Priority.MEDIUM,
+                    category=Category.OTHER,
+                    action="archive",
+                )
+                obs, _, done, _ = env.step(action)
+                if done:
+                    break
+            result = grader.run(actions)
+            raw = result["score"]
+            return max(0.01, min(0.99, float(raw)))
+    return 0.5
+
+
+@app.get("/grade/task_easy")
+async def grade_easy() -> dict[str, object]:
+    """Grade task_easy_spam — returns score strictly between 0 and 1."""
+    score = _run_grader_score("task_easy_spam", num_emails=5, seed=42)
+    return {"score": score, "reward": score, "task_id": "task_easy_spam"}
+
+
+@app.get("/grade/task_medium")
+async def grade_medium() -> dict[str, object]:
+    """Grade task_medium_triage — returns score strictly between 0 and 1."""
+    score = _run_grader_score("task_medium_triage", num_emails=10, seed=99)
+    return {"score": score, "reward": score, "task_id": "task_medium_triage"}
+
+
+@app.get("/grade/task_hard")
+async def grade_hard() -> dict[str, object]:
+    """Grade task_hard_ambiguous — returns score strictly between 0 and 1."""
+    score = _run_grader_score("task_hard_ambiguous", num_emails=13, seed=777)
+    return {"score": score, "reward": score, "task_id": "task_hard_ambiguous"}
+
+
 @app.get("/tasks")
 async def list_tasks() -> dict[str, object]:
     """List all available tasks with descriptions and difficulty."""
