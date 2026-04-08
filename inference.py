@@ -117,7 +117,7 @@ def run_task(task: dict) -> float:
             print(f"     ✗ Step error: {e}")
             break
 
-        reward = result.get("reward", 0.0)
+        reward = result.get("reward", 0.001)
         total_reward += reward
         steps += 1
         gt = result.get("info", {}).get("ground_truth", {})
