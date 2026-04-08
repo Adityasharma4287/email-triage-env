@@ -127,10 +127,10 @@ def run_task(task: dict) -> float:
             break
         obs = result["observation"]
 
-    score = total_reward / steps if steps > 0 else 0.0
-    # Normalize from [-1,1] to strictly (0,1) — 0.0 and 1.0 are not allowed
-    normalized = (score + 1.0) / 2.0
-    normalized = max(0.001, min(0.999, round(normalized, 4)))
+    score = total_reward / steps if steps > 0 else -0.999
+    # Normalize from [-1,1] to (0,1) strictly — 0.0 and 1.0 are not allowed
+    raw = (score + 1.0) / 2.0
+    normalized = max(0.001, min(0.999, round(raw, 4)))
     print(f"\n[END]")
     print(f"  ✓ Done — {steps} emails | raw_score={score:.4f} | normalized={normalized:.4f}")
     return normalized
@@ -162,11 +162,12 @@ def main():
             scores[task["id"]] = run_task(task)
         except Exception as e:
             print(f"\n  ❌ Task {task['id']} failed: {e}")
-            scores[task["id"]] = 0.0
+            scores[task["id"]] = 0.001  # strictly > 0.0
         time.sleep(0.5)
 
     elapsed = time.time() - t0
-    avg = sum(scores.values()) / len(scores)
+    avg_raw = sum(scores.values()) / len(scores)
+    avg = max(0.001, min(0.999, round(avg_raw, 4)))
 
     print("\n╔══════════════════════════════════════════════════════╗")
     print("║                  BASELINE SCORES                    ║")
