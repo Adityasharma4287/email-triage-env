@@ -286,13 +286,19 @@ class EmailTriageEnv:
         )
 
     def get_score(self) -> float:
-        """Return normalized score in [0.0, 1.0] for graders."""
+        """Return normalized score strictly in (0.0, 1.0) exclusive for graders."""
         if not self._processed:
-            return 0.0
+            return 0.001
         max_possible = len(self._processed) * 1.0
         earned = self._cumulative_reward
         normalized = (earned / max_possible) if max_possible > 0 else 0.0
-        return max(0.0, min(1.0, (normalized + 1.0) / 2.0))
+        raw = (normalized + 1.0) / 2.0
+        # Clamp to strictly (0, 1) — 0.0 and 1.0 are not allowed
+        if raw <= 0.0:
+            return 0.001
+        elif raw >= 1.0:
+            return 0.999
+        return round(raw, 4)
 
     def get_episode_log(self) -> list[dict]:  # type: ignore[type-arg]
         return self._episode_log
@@ -406,7 +412,8 @@ class EmailTriageEnv:
             reward += penalty
             breakdown["urgent_archive_penalty"] = penalty
 
-        return max(-1.0, min(1.0, reward)), breakdown
+        clamped = max(-0.999, min(0.999, reward))
+        return round(clamped, 4), breakdown
 
     def _score_priority(self, predicted: str, ground_truth: str) -> float:
         priority_order = {"urgent": 4, "high": 3, "medium": 2, "low": 1, "spam": 0}
