@@ -108,9 +108,9 @@ class SpamDetectionGrader(BaseGrader):
                     urgent_correct += 1
 
         return {
-            "spam_detection_rate": normalize_score(round(spam_correct / spam_total, 3) if spam_total else 1.0),
-            "urgent_detection_rate": normalize_score(round(urgent_correct / urgent_total, 3) if urgent_total else 1.0),
-            "overall_score": score,
+            "spam_detection_rate": normalize_score(round(spam_correct / spam_total, 3) if spam_total else 0.999),
+            "urgent_detection_rate": normalize_score(round(urgent_correct / urgent_total, 3) if urgent_total else 0.999),
+            "overall_score": normalize_score(score),
             "passed": score >= self.passing_threshold,
         }
 
@@ -140,7 +140,7 @@ class FullTriageGrader(BaseGrader):
             "priority_accuracy": normalize_score(round(priority_hits / n, 3)),
             "category_accuracy": normalize_score(round(category_hits / n, 3)),
             "action_accuracy": normalize_score(round(action_hits / n, 3)),
-            "overall_score": score,
+            "overall_score": normalize_score(score),
             "passed": score >= self.passing_threshold,
         }
 
@@ -169,9 +169,9 @@ class AmbiguousEmailGrader(BaseGrader):
             "dangerous_mistakes": dangerous_mistakes,
             "no_dangerous_mistakes": dangerous_mistakes == 0,
             "escalation_precision": normalize_score(round(
-                escalations / gt_escalations if gt_escalations else 1.0, 3
+                escalations / gt_escalations if gt_escalations else 0.999, 3
             )),
-            "overall_score": score,
+            "overall_score": normalize_score(score),
             "passed": score >= self.passing_threshold,
         }
 
