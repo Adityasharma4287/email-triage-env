@@ -1,3 +1,13 @@
+---
+title: Email Triage App
+emoji: 📧
+colorFrom: blue
+colorTo: green
+sdk: gradio        # or streamlit / docker
+sdk_version: "4.0"
+app_file: app.py
+pinned: false
+---
 # 📧 Email Triage OpenEnv
 
 > **OpenEnv Hackathon Submission** — Meta × Scaler × Hugging Face  
