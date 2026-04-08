@@ -4,7 +4,7 @@
 > An OpenEnv-compliant RL environment simulating real-world email inbox management.
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-v1.0-blue)](https://github.com/meta-pytorch/OpenEnv)
-[![HF Space](https://img.shields.io/badge/🤗-HF%20Space-yellow)](https://huggingface.co/spaces)
+[![HF Space](https://img.shields.io/badge/🤗-HF%20Space-yellow)](https://huggingface.co/spaces/Adityasharma4287/email-triage-app)
 [![Docker](https://img.shields.io/badge/Docker-ready-brightgreen)](./Dockerfile)
 
 ---
@@ -35,7 +35,7 @@ Unlike toy environments, Email Triage requires:
 | `thread_length` | int | Number of messages in thread |
 | `inbox_count` | int | Emails remaining to process |
 | `processed_count` | int | Emails already processed |
-| `current_score` | float | Running normalized score [0,1] |
+| `current_score` | float | Running normalized score strictly in (0,1) |
 | `step_number` | int | Current step in episode |
 
 ### Action Space (`TriageAction`)
@@ -52,11 +52,11 @@ Unlike toy environments, Email Triage requires:
 
 ## 📋 Tasks
 
-| Task ID | Difficulty | Emails | Description | Baseline Score |
-|---|---|---|---|---|
-| `task_easy_spam` | 🟢 Easy | 5 | Spam detection + basic priority | 0.45 |
-| `task_medium_triage` | 🟡 Medium | 10 | Full triage across all categories | 0.40 |
-| `task_hard_ambiguous` | 🔴 Hard | 13 | Security disclosures, long threads, edge cases | 0.30 |
+| Task ID | Difficulty | Emails | Seed | Description | Passing Threshold |
+|---|---|---|---|---|---|
+| `task_easy_spam` | 🟢 Easy | 5 | 42 | Spam detection + basic priority | 0.60 |
+| `task_medium_triage` | 🟡 Medium | 10 | 99 | Full triage across all categories | 0.55 |
+| `task_hard_ambiguous` | 🔴 Hard | 13 | 777 | Security disclosures, long threads, edge cases | 0.45 |
 
 ---
 
@@ -76,7 +76,28 @@ reward = priority_score × 0.40
 - **Category** exact match=1.0, wrong=-0.5
 - **Action** exact=1.0, reasonable alternative=0.4, dangerous=−1.0
 
-Final score is normalized to `[0.0, 1.0]`.
+Final score is **strictly normalized to (0.001, 0.999)** — 0.0 and 1.0 are never returned.
+
+---
+
+## 📊 Score Normalization
+
+All scores are strictly between 0 and 1 (exclusive) in both `graders/graders.py` and `inference.py`:
+
+```python
+def normalize_score(score: float) -> float:
+    if score <= 0:
+        return 0.001
+    elif score >= 1:
+        return 0.999
+    return round(score, 4)
+```
+
+In `inference.py`, the final task score is also clamped:
+```python
+normalized = (score + 1.0) / 2.0
+normalized = max(0.001, min(0.999, round(normalized, 4)))
+```
 
 ---
 
@@ -90,7 +111,7 @@ Final score is normalized to `[0.0, 1.0]`.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/email-triage-env
+git clone https://github.com/Adityasharma4287/email-triage-env
 cd email-triage-env
 
 # Build & run
@@ -147,26 +168,12 @@ python inference.py
 
 ---
 
-## 📊 Baseline Scores
-
-Measured with `gpt-4o-mini` at temperature 0:
-
-```
-task_easy_spam       │ ████████████░░░░░░░░░░░░ │ 0.4521
-task_medium_triage   │ ██████████░░░░░░░░░░░░░░ │ 0.3987
-task_hard_ambiguous  │ ████████░░░░░░░░░░░░░░░░ │ 0.3012
-─────────────────────────────────────────────────
-AVERAGE              │                           │ 0.3840
-```
-
----
-
 ## 📁 Project Structure
 
 ```
 email-triage-env/
 ├── app.py                  # FastAPI server (OpenEnv HTTP interface)
-├── inference.py            # Baseline inference script
+├── inference.py            # Baseline inference script (score strictly in (0,1))
 ├── openenv.yaml            # OpenEnv metadata spec
 ├── requirements.txt        # Python dependencies
 ├── Dockerfile              # Multi-stage Docker build
@@ -177,7 +184,7 @@ email-triage-env/
 │   └── email_triage_env.py # Core environment logic
 ├── graders/
 │   ├── __init__.py
-│   └── graders.py          # Task graders (easy/medium/hard)
+│   └── graders.py          # Task graders with normalize_score strictly (0,1)
 └── frontend/
     ├── package.json
     ├── vite.config.js
@@ -185,6 +192,20 @@ email-triage-env/
     └── src/
         ├── main.jsx
         └── App.jsx         # Animated React dashboard
+```
+
+---
+
+## 📦 Dependencies (`requirements.txt`)
+
+```
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+openai==1.57.0
+python-multipart==0.0.18
+httpx==0.28.1
+requests
 ```
 
 ---
@@ -206,7 +227,7 @@ Expected output:
     "step() returns (obs, reward, done, info)",
     "reward in [-1.0, 1.0]",
     "state() returns EnvironmentState",
-    "score in [0.0, 1.0]"
+    "score in (0.0, 1.0) strictly"
   ]
 }
 ```
@@ -215,12 +236,11 @@ Expected output:
 
 ## 🤗 Deploying to Hugging Face Spaces
 
-1. Create a new Space (Docker SDK) at huggingface.co
-2. Set repository secrets: `API_BASE_URL`, `MODEL_NAME`, `HF_TOKEN`
-3. Push your code — Space auto-builds from `Dockerfile`
+- **GitHub**: https://github.com/Adityasharma4287/email-triage-env
+- **HF Space**: https://huggingface.co/spaces/Adityasharma4287/email-triage-app
 
 ```bash
-git remote add space https://huggingface.co/spaces/YOUR_USERNAME/email-triage-env
+git remote add space https://huggingface.co/spaces/Adityasharma4287/email-triage-env
 git push space main
 ```
 
