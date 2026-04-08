@@ -281,22 +281,30 @@ def _run_grader_score(task_id: str, num_emails: int, seed: int) -> float:
     return 0.5
 
 
+class GradeRequest(BaseModel):
+    agent_actions: Optional[list[dict]] = None
+    session_id: Optional[str] = None
+
+
 @app.get("/grade/task_easy")
-async def grade_easy() -> dict[str, object]:
+@app.post("/grade/task_easy")
+async def grade_easy(req: Optional[GradeRequest] = None) -> dict[str, object]:
     """Grade task_easy_spam — returns score strictly between 0 and 1."""
     score = _run_grader_score("task_easy_spam", num_emails=5, seed=42)
     return {"score": score, "reward": score, "task_id": "task_easy_spam"}
 
 
 @app.get("/grade/task_medium")
-async def grade_medium() -> dict[str, object]:
+@app.post("/grade/task_medium")
+async def grade_medium(req: Optional[GradeRequest] = None) -> dict[str, object]:
     """Grade task_medium_triage — returns score strictly between 0 and 1."""
     score = _run_grader_score("task_medium_triage", num_emails=10, seed=99)
     return {"score": score, "reward": score, "task_id": "task_medium_triage"}
 
 
 @app.get("/grade/task_hard")
-async def grade_hard() -> dict[str, object]:
+@app.post("/grade/task_hard")
+async def grade_hard(req: Optional[GradeRequest] = None) -> dict[str, object]:
     """Grade task_hard_ambiguous — returns score strictly between 0 and 1."""
     score = _run_grader_score("task_hard_ambiguous", num_emails=13, seed=777)
     return {"score": score, "reward": score, "task_id": "task_hard_ambiguous"}
