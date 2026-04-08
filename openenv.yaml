@@ -81,7 +81,7 @@ tasks:
 
 reward:
   type: continuous
-  range: [0.0, 1.0]
+  range: [0.001, 0.999]   # ✅ SAHI — strictly exclusive (0, 1)
   trajectory: true
 
 endpoints:
