@@ -32,12 +32,14 @@ class BaseGrader:
     def run(self, agent_actions: list[dict]) -> dict:
         """
         Run grader with provided agent actions.
-        Returns dict with score, details, and pass/fail per criterion.
+        Returns dict with score, details, pass/fail, and confidence calibration.
         """
         env = EmailTriageEnv(task_id=self.task_id, num_emails=self.num_emails, seed=self.seed)
         obs = env.reset()
 
         results = []
+        confidence_scores: list[float] = []
+
         for action_dict in agent_actions:
             if obs.email_id == "DONE":
                 break
@@ -53,16 +55,39 @@ class BaseGrader:
                 )
                 obs, reward, done, info = env.step(action)
                 results.append({"reward": reward, "info": info})
+
+                # NEW: track confidence if smart_agent provided it
+                conf = action_dict.get("confidence")
+                if conf is not None:
+                    confidence_scores.append(float(conf))
+
                 if done:
                     break
             except Exception as e:
                 results.append({"reward": -0.5, "info": {"error": str(e)}})
 
         raw_score = env.get_score()
-        score = normalize_score(raw_score)  # ← ensure strictly (0, 1)
+        score = normalize_score(raw_score)
         episode_log = env.get_episode_log()
 
-        return {
+        # NEW: confidence calibration — did high-confidence decisions actually score better?
+        confidence_report: dict = {}
+        if confidence_scores and len(confidence_scores) == len(results):
+            high_conf = [results[i]["reward"] for i, c in enumerate(confidence_scores) if c >= 0.8]
+            low_conf  = [results[i]["reward"] for i, c in enumerate(confidence_scores) if c < 0.65]
+            confidence_report = {
+                "avg_confidence": round(sum(confidence_scores) / len(confidence_scores), 3),
+                "high_confidence_count": len(high_conf),
+                "high_confidence_avg_reward": round(sum(high_conf) / len(high_conf), 3) if high_conf else None,
+                "low_confidence_count": len(low_conf),
+                "low_confidence_avg_reward": round(sum(low_conf) / len(low_conf), 3) if low_conf else None,
+                "well_calibrated": (
+                    (sum(high_conf) / len(high_conf) if high_conf else 0) >
+                    (sum(low_conf)  / len(low_conf)  if low_conf  else 0)
+                ),
+            }
+
+        result = {
             "score": score,
             "task_id": self.task_id,
             "difficulty": self.difficulty,
@@ -72,6 +97,9 @@ class BaseGrader:
             "episode_log": episode_log,
             "criteria": self._evaluate_criteria(episode_log, score),
         }
+        if confidence_report:
+            result["confidence_report"] = confidence_report
+        return result
 
     def _evaluate_criteria(self, log: list[dict], score: float) -> dict:
         raise NotImplementedError
