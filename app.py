@@ -205,6 +205,132 @@ async def get_episode_log(session_id: str) -> dict[str, object]:
     return {"session_id": session_id, "log": env.get_episode_log()}
 
 
+# ── NEW: Analytics endpoint ───────────────────────────────────────────────────
+
+@app.get("/analytics/{session_id}")
+async def get_analytics(session_id: str) -> dict[str, object]:
+    """
+    NEW FEATURE: Detailed analytics for a session.
+    Returns per-category accuracy, action breakdown, and error analysis.
+    Useful for understanding WHERE the agent is making mistakes.
+    """
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
+    env = sessions[session_id]
+    log = env.get_episode_log()
+
+    if not log:
+        return {"session_id": session_id, "message": "No steps taken yet."}
+
+    # Priority accuracy breakdown
+    priority_stats: dict = {}
+    category_stats: dict = {}
+    action_stats: dict = {}
+    mistakes = []
+
+    for entry in log:
+        gt = entry["ground_truth"]
+        ag = entry["agent_action"]
+        reward = entry["reward"]
+
+        for field, stats in [("priority", priority_stats), ("category", category_stats), ("action", action_stats)]:
+            key = gt[field]
+            if key not in stats:
+                stats[key] = {"correct": 0, "total": 0}
+            stats[key]["total"] += 1
+            if ag[field] == gt[field]:
+                stats[key]["correct"] += 1
+
+        # Collect mistakes for error analysis
+        if reward < 0:
+            mistakes.append({
+                "subject":        entry.get("subject", "")[:60],
+                "gt_priority":    gt.get("priority"),
+                "gt_action":      gt.get("action"),
+                "agent_priority": ag.get("priority"),
+                "agent_action":   ag.get("action"),
+                "reward":         round(reward, 4),
+            })
+
+    def acc(stats: dict) -> dict:
+        return {
+            k: {
+                "accuracy": round(v["correct"] / v["total"], 3) if v["total"] else 0,
+                "correct":  v["correct"],
+                "total":    v["total"],
+            }
+            for k, v in stats.items()
+        }
+
+    total_steps = len(log)
+    avg_reward  = sum(e["reward"] for e in log) / total_steps
+
+    return {
+        "session_id":         session_id,
+        "total_steps":        total_steps,
+        "overall_score":      env.get_score(),
+        "average_reward":     round(avg_reward, 4),
+        "priority_accuracy":  acc(priority_stats),
+        "category_accuracy":  acc(category_stats),
+        "action_accuracy":    acc(action_stats),
+        "mistakes":           mistakes,
+        "mistake_count":      len(mistakes),
+        "perfect_decisions":  sum(1 for e in log if e["reward"] >= 0.9),
+    }
+
+
+# ── NEW: In-memory Leaderboard ────────────────────────────────────────────────
+
+_leaderboard: list[dict] = []
+
+
+class LeaderboardEntry(BaseModel):
+    agent_name: str
+    score: float
+    task_id: str
+    model: Optional[str] = "unknown"
+    notes: Optional[str] = None
+
+
+@app.post("/leaderboard")
+async def submit_to_leaderboard(entry: LeaderboardEntry) -> dict[str, object]:
+    """
+    NEW FEATURE: Submit your agent's score to the in-memory leaderboard.
+    Agents can compete across sessions!
+    """
+    record = {
+        "rank":       0,
+        "agent_name": entry.agent_name,
+        "score":      round(max(0.001, min(0.999, entry.score)), 4),
+        "task_id":    entry.task_id,
+        "model":      entry.model,
+        "notes":      entry.notes,
+        "submitted_at": utcnow(),
+    }
+    _leaderboard.append(record)
+    # Sort by score descending
+    _leaderboard.sort(key=lambda x: x["score"], reverse=True)
+    for i, r in enumerate(_leaderboard):
+        r["rank"] = i + 1
+    return {"message": "Score submitted!", "rank": record["rank"], "entry": record}
+
+
+@app.get("/leaderboard")
+async def get_leaderboard(task_id: Optional[str] = None, limit: int = 10) -> dict[str, object]:
+    """
+    NEW FEATURE: View the leaderboard.
+    Filter by task_id to see rankings per difficulty level.
+    """
+    board = _leaderboard
+    if task_id:
+        board = [r for r in board if r["task_id"] == task_id]
+    return {
+        "leaderboard": board[:limit],
+        "total_entries": len(board),
+        "filter": task_id or "all",
+    }
+
+
 @app.get("/validate")
 async def validate_environment() -> dict[str, object]:
     """OpenEnv validation — runs a quick self-test to verify spec compliance."""
