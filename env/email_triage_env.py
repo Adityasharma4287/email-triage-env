@@ -164,6 +164,98 @@ EMAIL_TEMPLATES = [
         "ground_truth": {"priority": "high", "category": "customer_support", "action": "escalate"},
         "difficulty": "hard"
     },
+
+    # ── NEW TEMPLATES (diverse & realistic) ────────────────────────────────────
+
+    # Phishing — looks real but isn't
+    {
+        "subject": "Action Required: Your account will be suspended in 24 hours",
+        "sender": "security-alert@paypa1-support.com",
+        "body": "Dear valued customer, we detected unusual activity on your PayPal account. To avoid suspension, verify your identity immediately by clicking the secure link below. Failure to do so will result in permanent account closure.",
+        "ground_truth": {"priority": "spam", "category": "spam", "action": "delete"},
+        "difficulty": "hard"
+    },
+
+    # Legal / Compliance — needs immediate routing
+    {
+        "subject": "GDPR Data Subject Access Request — Response Required Within 30 Days",
+        "sender": "legal@euregulator.org",
+        "body": "This is a formal Data Subject Access Request under Article 15 of the GDPR. The data subject requests all personal data held by your organisation. You are legally required to respond within 30 calendar days. Please confirm receipt and provide the data or a valid exemption notice.",
+        "ground_truth": {"priority": "high", "category": "other", "action": "escalate"},
+        "difficulty": "hard"
+    },
+
+    # HR — low priority internal
+    {
+        "subject": "Performance Review Cycle Starts Next Monday",
+        "sender": "hr@company.com",
+        "body": "Hi team, just a reminder that our Q2 performance review cycle begins next Monday. Please complete your self-assessments in Workday by April 25th. If you have questions, reach out to your HR business partner.",
+        "ground_truth": {"priority": "low", "category": "internal", "action": "archive"},
+        "difficulty": "easy"
+    },
+
+    # Billing dispute — angry CFO
+    {
+        "subject": "Charged twice for the same invoice — this is unacceptable",
+        "sender": "cfo@midmarket-corp.com",
+        "body": "We were charged $4,200 twice for invoice INV-2026-0312. I have attached the bank statements. This is a serious error and if not resolved by Friday we will initiate a chargeback and escalate to our legal team. I expect a response within the hour.",
+        "ground_truth": {"priority": "urgent", "category": "billing", "action": "escalate"},
+        "difficulty": "medium"
+    },
+
+    # Partnership inquiry — high value sales lead
+    {
+        "subject": "Strategic Partnership Opportunity — Series B fintech startup",
+        "sender": "ceo@fintechrocket.io",
+        "body": "Hi, I'm the founder of FinTechRocket, a Series B startup with 200k users. We'd love to explore embedding your API into our product. We believe this could be a seven-figure ARR opportunity for both sides. Are you available for a 30-min call this week?",
+        "ground_truth": {"priority": "high", "category": "sales", "action": "forward"},
+        "difficulty": "medium"
+    },
+
+    # Subscription cancellation — churn risk
+    {
+        "subject": "Please cancel my subscription",
+        "sender": "user4821@gmail.com",
+        "body": "I'd like to cancel my Pro subscription immediately. It's too expensive and I'm not using most of the features. Please confirm cancellation and refund the current month. I've been a customer for 3 years.",
+        "ground_truth": {"priority": "high", "category": "billing", "action": "reply"},
+        "difficulty": "medium"
+    },
+
+    # Multi-language — Spanish (tests robustness)
+    {
+        "subject": "Problema urgente con la facturacion",
+        "sender": "cliente@empresa-mx.com",
+        "body": "Hola, tengo un problema urgente con mi factura del mes pasado. Me cobraron el doble y necesito una solucion hoy mismo. Por favor contactenme lo antes posible. Gracias.",
+        "ground_truth": {"priority": "urgent", "category": "billing", "action": "escalate"},
+        "difficulty": "hard"
+    },
+
+    # IT security — internal mandatory action
+    {
+        "subject": "Mandatory: Reset your password before EOD",
+        "sender": "it-security@company.com",
+        "body": "Due to a recent security audit, all employees must reset their passwords before end of day today. Please visit the IT portal and follow the instructions. Accounts that are not updated will be temporarily locked.",
+        "ground_truth": {"priority": "high", "category": "internal", "action": "archive"},
+        "difficulty": "medium"
+    },
+
+    # Positive feedback — no action needed
+    {
+        "subject": "Just wanted to say thank you!",
+        "sender": "happy.customer@email.com",
+        "body": "Your support team (especially Alex) was incredibly helpful in resolving my issue yesterday. I've been using your product for 2 years and this was my best experience yet. Keep up the great work!",
+        "ground_truth": {"priority": "low", "category": "customer_support", "action": "archive"},
+        "difficulty": "easy"
+    },
+
+    # Vendor invoice — routine billing
+    {
+        "subject": "Invoice #V-20260401 from CloudHostPro — $899/month",
+        "sender": "billing@cloudhostpro.com",
+        "body": "Please find attached your monthly invoice for cloud hosting services. Amount due: $899.00. Payment is due within 15 days. Thank you for your continued business.",
+        "ground_truth": {"priority": "medium", "category": "billing", "action": "archive"},
+        "difficulty": "easy"
+    },
 ]
 
 
