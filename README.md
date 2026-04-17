@@ -5,18 +5,19 @@ colorFrom: blue
 colorTo: green
 sdk: docker
 app_port: 7860
-pinned: false
+pinned: true
 ---
 
-# 📧 Email Triage OpenEnv
+# 📧 Email Triage — OpenEnv RL Environment
 
-> **OpenEnv Hackathon Submission** — Meta × Scaler × Hugging Face  
-> An OpenEnv-compliant RL environment simulating real-world email inbox management.
+> **OpenEnv Hackathon Submission** — Meta × Scaler × Hugging Face
+> A production-ready RL environment that trains AI agents to manage real-world email inboxes.
 
-[![OpenEnv](https://img.shields.io/badge/OpenEnv-v1.0-blue)](https://github.com/meta-pytorch/OpenEnv)
-[![HF Space](https://img.shields.io/badge/🤗-HF%20Space-yellow)](https://huggingface.co/spaces/Adityasharma4287/email-triage-app)
+[![OpenEnv](https://img.shields.io/badge/OpenEnv-v1.0-blue)](https://github.com/Adityasharma4287/email-triage-env)
+[![HF Space](https://img.shields.io/badge/🤗-Live%20Demo-yellow)](https://huggingface.co/spaces/Adityasharma4287/email-triage-app)
 [![Docker](https://img.shields.io/badge/Docker-ready-brightgreen)](./Dockerfile)
-[![Model](https://img.shields.io/badge/🦙-Fine--tuned%20Llama-orange)](https://huggingface.co/Adityasharma4287/email-triage-llama-rl)
+[![Fine-tuned Model](https://img.shields.io/badge/🦙-Llama%20GRPO-orange)](https://huggingface.co/Adityasharma4287/email-triage-llama-rl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
 
@@ -28,33 +29,44 @@ pinned: false
 | `task_medium_triage` | 🟡 Medium | 0.55 | **0.606** | ✅ Pass |
 | `task_hard_ambiguous` | 🔴 Hard | 0.45 | **0.619** | ✅ Pass |
 
+> All 3 tasks passed. Scores strictly in `(0.0, 1.0)` as per OpenEnv spec.
+
+---
+
+## 🎯 What Is This?
+
+Email triage is one of the most universal real-world tasks — knowledge workers spend **28% of their workweek on email**. This OpenEnv-compliant environment trains AI agents to:
+
+- **Classify** emails: spam, urgent, billing, technical, sales, internal, etc.
+- **Prioritize** intelligently: `urgent → high → medium → low → spam`
+- **Route correctly**: reply, escalate, archive, forward, or delete
+- Handle **ambiguous edge cases**: security disclosures, angry CFO emails, phishing that looks real, multi-language emails
+
+Unlike toy environments, this requires true natural language understanding and nuanced judgment — not binary right/wrong.
+
 ---
 
 ## 🤖 Fine-tuned Model
 
-We fine-tuned **Llama 3.1 8B** using **GRPO (Group Relative Policy Optimization)** on email triage tasks:
+We fine-tuned **Llama 3.1 8B** using **GRPO (Group Relative Policy Optimization)**:
 
-- **Base Model**: meta-llama/Llama-3.1-8B (4-bit quantized)
-- **Training Method**: GRPO Reinforcement Learning
-- **Fine-tuned Model**: [Adityasharma4287/email-triage-llama-rl](https://huggingface.co/Adityasharma4287/email-triage-llama-rl)
+- **Base**: `meta-llama/Llama-3.1-8B` (4-bit quantized)
+- **Method**: GRPO Reinforcement Learning on email triage tasks
+- **Published**: [Adityasharma4287/email-triage-llama-rl](https://huggingface.co/Adityasharma4287/email-triage-llama-rl)
 
----
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-## 🎯 Environment Description & Motivation
-
-Email triage is one of the most universal real-world tasks — knowledge workers spend 28% of their workweek on email. This environment trains AI agents to **classify, prioritize, and route emails** correctly, rewarding nuanced judgment and penalizing dangerous mistakes (e.g., archiving an urgent security incident).
-
-Unlike toy environments, Email Triage requires:
-- **Natural language understanding** — reading email context
-- **Priority judgment** — distinguishing truly urgent from merely important
-- **Routing intelligence** — knowing which team handles what
-- **Partial credit sensitivity** — a reward function that grades nuance, not just binary right/wrong
+model = AutoModelForCausalLM.from_pretrained("Adityasharma4287/email-triage-llama-rl")
+tokenizer = AutoTokenizer.from_pretrained("Adityasharma4287/email-triage-llama-rl")
+```
 
 ---
 
 ## 🔬 Action & Observation Space
 
-### Observation Space (`EmailObservation`)
+### Observation — `EmailObservation`
+
 | Field | Type | Description |
 |---|---|---|
 | `email_id` | str | Unique email identifier |
@@ -66,18 +78,49 @@ Unlike toy environments, Email Triage requires:
 | `thread_length` | int | Number of messages in thread |
 | `inbox_count` | int | Emails remaining to process |
 | `processed_count` | int | Emails already processed |
-| `current_score` | float | Running normalized score strictly in (0,1) |
+| `current_score` | float | Running score strictly in `(0, 1)` |
 | `step_number` | int | Current step in episode |
 
-### Action Space (`TriageAction`)
+### Action — `TriageAction`
+
 | Field | Type | Options |
 |---|---|---|
 | `priority` | enum | `urgent` · `high` · `medium` · `low` · `spam` |
 | `category` | enum | `customer_support` · `billing` · `technical` · `sales` · `internal` · `spam` · `other` |
 | `action` | enum | `reply` · `archive` · `escalate` · `delete` · `forward` |
-| `reply_text` | str? | Reply content (optional) |
-| `forward_to` | str? | Forward recipient (optional) |
-| `notes` | str? | Agent reasoning notes |
+| `reply_text` | str? | Reply content (optional, bonus if len > 50) |
+| `forward_to` | str? | Recipient email if forwarding |
+| `notes` | str? | Agent's reasoning notes |
+
+---
+
+## 🏆 Reward Function
+
+Rewards are computed **per step** (not end-of-episode) for continuous learning signal:
+
+```
+reward = priority_score  × 0.40
+       + category_score  × 0.30
+       + action_score    × 0.30
+       + reply_bonus     × 0.05   (if reply_text provided and len > 50)
+       - urgent_penalty  × 0.30   (if urgent email is archived)
+```
+
+**Priority scoring** (graded scale):
+
+| Difference | Score |
+|---|---|
+| Exact match | +1.0 |
+| Off by 1 | +0.3 |
+| Off by 2 | -0.2 |
+| Wildly wrong | -1.0 |
+
+**Action scoring:**
+- Exact match → `+1.0`
+- Reasonable alternative (e.g. `escalate` instead of `forward`) → `+0.4`
+- Dangerous (e.g. `delete` on urgent email) → `-1.0`
+
+Final score is clamped strictly to `(0.001, 0.999)` — 0.0 and 1.0 are never returned.
 
 ---
 
@@ -89,87 +132,41 @@ Unlike toy environments, Email Triage requires:
 | `task_medium_triage` | 🟡 Medium | 10 | 99 | Full triage across all categories | 0.55 |
 | `task_hard_ambiguous` | 🔴 Hard | 13 | 777 | Security disclosures, long threads, edge cases | 0.45 |
 
----
-
-## 🏆 Reward Function
-
-Rewards are computed **per step** (not end-of-episode), giving the agent signal throughout the trajectory:
-
-```
-reward = priority_score × 0.40
-       + category_score × 0.30
-       + action_score   × 0.30
-       + reply_bonus    × 0.05   (if reply_text provided and len > 50)
-       - urgent_penalty × 0.30   (if urgent email is archived/deleted)
-```
-
-- **Priority** scored on a graded scale (exact=1.0, off-by-one=0.3, off-by-two=-0.2, wildly wrong=-1.0)
-- **Category** exact match=1.0, wrong=-0.5
-- **Action** exact=1.0, reasonable alternative=0.4, dangerous=−1.0
-
-Final score is **strictly normalized to (0.001, 0.999)** — 0.0 and 1.0 are never returned.
+**Hard task includes edge cases like:**
+- Phishing disguised as PayPal security alerts
+- GDPR legal requests with 30-day deadlines
+- Angry CFO disputing a double charge (`$4,200`)
+- Security researcher reporting SQL injection (no money demanded)
+- Multi-language billing complaints (Spanish)
 
 ---
 
-## 📊 Score Normalization
+## 🚀 Quick Start
 
-All scores are strictly between 0 and 1 (exclusive) in both `graders/graders.py` and `inference.py`:
-
-```python
-def normalize_score(score: float) -> float:
-    if score <= 0:
-        return 0.001
-    elif score >= 1:
-        return 0.999
-    return round(score, 4)
-```
-
-In `inference.py`, the final task score is also clamped:
-```python
-normalized = (score + 1.0) / 2.0
-normalized = max(0.001, min(0.999, round(normalized, 4)))
-```
-
----
-
-## 🚀 Setup & Usage
-
-### Prerequisites
-- Docker 24+
-- Python 3.11+
-
-### Quick Start (Docker)
+### Docker (Recommended)
 
 ```bash
-# Clone the repository
 git clone https://github.com/Adityasharma4287/email-triage-env
 cd email-triage-env
 
-# Build & run
 docker build -t email-triage-env .
 docker run -p 7860:7860 email-triage-env
 
-# Visit dashboard
-open http://localhost:7860/app
-
-# View API docs
-open http://localhost:7860/docs
+open http://localhost:7860/app    # React dashboard
+open http://localhost:7860/docs   # Swagger API docs
 ```
 
 ### Local Development
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Start backend
 uvicorn app:app --reload --port 7860
 
-# Start frontend (separate terminal)
+# Frontend (separate terminal)
 cd frontend && npm install && npm run dev
 ```
 
-### Run Baseline Inference
+### Run Inference
 
 ```bash
 export API_BASE_URL="https://api.openai.com/v1"
@@ -182,73 +179,55 @@ python inference.py
 
 ---
 
+## 🐍 Python Usage
+
+```python
+from env.email_triage_env import EmailTriageEnv, TriageAction, Priority, Category
+
+env = EmailTriageEnv(task_id="task_medium_triage", num_emails=10, seed=99)
+obs = env.reset()
+
+while obs.email_id != "DONE":
+    action = TriageAction(
+        email_id=obs.email_id,
+        priority=Priority.HIGH,
+        category=Category.CUSTOMER_SUPPORT,
+        action="escalate",
+        notes="Angry customer, urgent billing issue"
+    )
+    obs, reward, done, info = env.step(action)
+    print(f"Reward: {reward:.4f} | Score: {obs.current_score:.4f}")
+    if done:
+        break
+
+print(f"Final Score: {env.get_score()}")
+```
+
+---
+
 ## 📡 API Reference
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | Liveness probe (must return 200) |
+| `GET` | `/health` | Liveness probe |
 | `POST` | `/reset` | Start a new episode |
 | `POST` | `/step` | Submit a triage action |
 | `GET` | `/state/{session_id}` | Get episode state |
 | `GET` | `/score/{session_id}` | Get normalized score |
 | `GET` | `/validate` | OpenEnv spec self-test |
 | `GET` | `/tasks` | List all available tasks |
-| `GET` | `/log/{session_id}` | Get full decision log |
+| `GET` | `/log/{session_id}` | Full decision log |
 | `GET` | `/app` | React dashboard UI |
-| `GET` | `/docs` | Swagger API documentation |
+| `GET` | `/docs` | Swagger API docs |
 
 ---
 
-## 📁 Project Structure
+## ✅ OpenEnv Spec Compliance
 
-```
-email-triage-env/
-├── app.py                  # FastAPI server (OpenEnv HTTP interface)
-├── inference.py            # Baseline inference script (score strictly in (0,1))
-├── openenv.yaml            # OpenEnv metadata spec
-├── requirements.txt        # Python dependencies
-├── Dockerfile              # Multi-stage Docker build
-├── docker-compose.yml      # Local development compose
-├── README.md               # This file
-├── env/
-│   ├── __init__.py
-│   └── email_triage_env.py # Core environment logic
-├── graders/
-│   ├── __init__.py
-│   └── graders.py          # Task graders with normalize_score strictly (0,1)
-└── frontend/
-    ├── package.json
-    ├── vite.config.js
-    ├── index.html
-    └── src/
-        ├── main.jsx
-        └── App.jsx         # Animated React dashboard
-```
-
----
-
-## 📦 Dependencies (`requirements.txt`)
-
-```
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-pydantic==2.10.3
-openai==1.57.0
-python-multipart==0.0.18
-httpx==0.28.1
-requests
-```
-
----
-
-## 🧪 OpenEnv Spec Compliance
-
-Run the built-in validation:
 ```bash
 curl http://localhost:7860/validate
 ```
 
-Expected output:
 ```json
 {
   "valid": true,
@@ -265,11 +244,49 @@ Expected output:
 
 ---
 
-## 🤗 Links
+## 📁 Project Structure
 
-- **GitHub**: https://github.com/Adityasharma4287/email-triage-env
-- **HF Space**: https://huggingface.co/spaces/Adityasharma4287/email-triage-app
-- **Fine-tuned Model**: https://huggingface.co/Adityasharma4287/email-triage-llama-rl
+```
+email-triage-env/
+├── app.py                  # FastAPI server (OpenEnv HTTP interface)
+├── inference.py            # Baseline inference script
+├── smart_agent.py          # Fine-tuned Llama agent
+├── openenv.yaml            # OpenEnv metadata spec
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Multi-stage Docker build
+├── docker-compose.yml      # Local dev compose
+├── baseline_scores.json    # GPT-4o-mini baseline reference
+├── env/
+│   └── email_triage_env.py # Core RL environment + 25 email templates
+├── graders/
+│   └── graders.py          # Easy / Medium / Hard graders
+└── frontend/
+    └── src/App.jsx         # Animated React dashboard
+```
+
+---
+
+## 📦 Dependencies
+
+```
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+openai==1.57.0
+python-multipart==0.0.18
+httpx==0.28.1
+requests
+```
+
+---
+
+## 🔗 Links
+
+| Resource | Link |
+|---|---|
+| GitHub | [email-triage-env](https://github.com/Adityasharma4287/email-triage-env) |
+| HF Space | [email-triage-app](https://huggingface.co/spaces/Adityasharma4287/email-triage-app) |
+| Fine-tuned Model | [email-triage-llama-rl](https://huggingface.co/Adityasharma4287/email-triage-llama-rl) |
 
 ```bash
 git remote add space https://huggingface.co/spaces/Adityasharma4287/email-triage-env
@@ -278,5 +295,17 @@ git push space main
 
 ---
 
-*Built for the OpenEnv Hackathon — Meta × Hugging Face × Scaler School of Technology*  
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create your branch: `git checkout -b feature/YourFeature`
+3. Commit: `git commit -m 'Add YourFeature'`
+4. Push: `git push origin feature/YourFeature`
+5. Open a Pull Request
+
+---
+
+*Built for the OpenEnv Hackathon — Meta × Hugging Face × Scaler School of Technology*
 *Developer: Aditya Sharma — Scaler School of Technology*
+
+> ⭐ If this helped you, please star the repo — it helps others discover it!
